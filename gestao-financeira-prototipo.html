@@ -212,7 +212,7 @@
     padding:4px 5px 7px;
     border-bottom:1px solid var(--line);
     text-align:center;
-    min-width:130px;
+    min-width:165px;
     vertical-align:bottom;
   }
   .cat-row-cell{
@@ -268,6 +268,18 @@
   }
   th.col-collapsed .collapse-col-btn, td.col-collapsed .collapse-col-btn{margin:0 auto;}
   td.col-collapsed{background:var(--primary-soft);}
+  th.invest-section-collapsed, td.invest-section-collapsed{
+    min-width:0; width:34px; max-width:34px; padding:6px 2px; vertical-align:middle;
+  }
+  td.invest-section-collapsed{background:var(--primary-soft);}
+  .invest-collapsed-stack{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  }
+  .vertical-label{
+    writing-mode:vertical-rl; transform:rotate(180deg);
+    font-family:'Public Sans', sans-serif; font-weight:600; font-size:0.7rem;
+    color:var(--invest-tint-dark); letter-spacing:0.02em; white-space:nowrap;
+  }
   th.calc, td.calc{
     background:#EEF1F8;
   }
@@ -542,13 +554,13 @@ const DEFAULT_STATE = {
     { date:monthDateISO(-1),
       income:{"Salário líquido":1450},
       accounts:{"Banco A":2000},
-      investments:{"PPR":{flow:0, saldo:1000}, "Broker A":{flow:0, saldo:500}} },
+      investments:{"PPR":{flow:0, saldo:0}, "Broker A":{flow:0, saldo:0}} },
     { date:monthDateISO(0),
       income:{"Salário líquido":1450},
       accounts:{"Banco A":2150},
-      investments:{"PPR":{flow:50, saldo:1050}, "Broker A":{flow:20, saldo:520}} },
+      investments:{"PPR":{flow:0, saldo:0}, "Broker A":{flow:0, saldo:0}} },
   ],
-  uiCollapsed: { accountCols: [], investCols: [], investSection: false }
+  uiCollapsed: { accountCols: [], investCols: [], investSection: true }
 };
 
 const state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -861,11 +873,15 @@ function render(){
 
   const investSectionCollapsed = state.uiCollapsed.investSection;
   if(investSectionCollapsed){
-    const investTopTh = document.createElement('th'); investTopTh.rowSpan=3; investTopTh.className='invest col-collapsed';
+    const investTopTh = document.createElement('th'); investTopTh.rowSpan=3; investTopTh.className='invest invest-section-collapsed';
+    const stack = document.createElement('div'); stack.className='invest-collapsed-stack';
     const expandBtn = document.createElement('button'); expandBtn.className='collapse-col-btn'; expandBtn.textContent='›';
     expandBtn.title = 'Mostrar secção de investimentos';
     expandBtn.onclick = toggleInvestSection;
-    investTopTh.appendChild(expandBtn);
+    stack.appendChild(expandBtn);
+    const vLabel = document.createElement('span'); vLabel.className='vertical-label'; vLabel.textContent='Investimentos';
+    stack.appendChild(vLabel);
+    investTopTh.appendChild(stack);
     groupRow.appendChild(investTopTh);
   } else {
     const investSpan = state.investCats.reduce((sum,b)=> sum + (state.uiCollapsed.investCols.includes(b) ? 1 : 2), 0);
@@ -1041,7 +1057,7 @@ function render(){
     if(investSectionCollapsed){
       // A célula colapsada de "Investimentos" no cabeçalho tem rowSpan=3 (não atravessa para o tbody),
       // por isso cada linha precisa da sua própria célula estreita nesta posição para as colunas não desalinharem.
-      const td = document.createElement('td'); td.className='invest col-collapsed'; tr.appendChild(td);
+      const td = document.createElement('td'); td.className='invest invest-section-collapsed'; tr.appendChild(td);
     } else {
       state.investCats.forEach(b=>{
         if(state.uiCollapsed.investCols.includes(b)){
