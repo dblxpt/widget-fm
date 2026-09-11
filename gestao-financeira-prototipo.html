@@ -362,6 +362,8 @@
     width:88px;
     font-size:0.78rem;
   }
+  .pos{color:var(--green);}
+  .neg{color:var(--rust);}
   .muted{color:var(--ink-soft);font-style:italic;font-family:'Public Sans', sans-serif;font-size:0.8rem;}
   .row-actions{width:36px;text-align:center;}
   .row-btns{display:flex; gap:4px; justify-content:center;}
@@ -1077,9 +1079,14 @@ function render(){
       fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.totalInvest), fmtEUR(c.patrimonioTotal),
       fmtEUR(c.gastoTotal), fmtEUR(c.poupEUR), fmtPct(c.poupPct)
     ];
+    const posneg = [null,null,null,null,null,c.poupEUR,c.poupPct];
     calcVals.forEach((v,idx)=>{
       const td=document.createElement('td'); td.className = idx===3 ? 'calc total-patrimonio' : 'calc'; td.textContent=v;
       td.setAttribute('data-label', calcLabels[idx]);
+      const num = posneg[idx];
+      if(num!==null && num!==undefined && !isNaN(num)){
+        td.classList.add(num>=0?'pos':'neg');
+      }
       tr.appendChild(td);
     });
 
@@ -1159,9 +1166,15 @@ function refreshCalc(){
       fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.totalInvest), fmtEUR(c.patrimonioTotal),
       fmtEUR(c.gastoTotal), fmtEUR(c.poupEUR), fmtPct(c.poupPct)
     ];
+    const posneg = [null,null,null,null,null,c.poupEUR,c.poupPct];
     const calcTds = tr.querySelectorAll('td.calc');
     calcTds.forEach((td,idx)=>{
       td.textContent = calcVals[idx];
+      td.classList.remove('pos','neg');
+      const num = posneg[idx];
+      if(num!==null && num!==undefined && !isNaN(num)){
+        td.classList.add(num>=0?'pos':'neg');
+      }
     });
   });
   saveState();
