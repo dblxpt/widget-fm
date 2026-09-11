@@ -212,8 +212,15 @@
     padding:4px 5px 7px;
     border-bottom:1px solid var(--line);
     text-align:center;
-    min-width:92px;
+    min-width:130px;
     vertical-align:bottom;
+  }
+  .cat-row-cell{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
   }
   th.invest, td.invest{background:var(--invest-tint);}
   th.total-patrimonio, td.total-patrimonio{background:var(--total-tint); color:var(--total-tint-dark); font-weight:700;}
@@ -227,25 +234,40 @@
     border-radius:2px;
     border-bottom:1px dashed var(--line);
     cursor:text;
+    white-space:nowrap;
   }
   .cat-label:focus{background:var(--primary-soft); border-bottom-style:solid; border-bottom-color:var(--primary);}
-  .add-col-btn{
-    font-size:0.68rem;
-    padding:2px 6px;
+  .add-col-btn, .collapse-col-btn, .row-btn, .del-col{
+    font-size:0.85rem;
+    font-weight:700;
+    padding:0;
     white-space:nowrap;
     flex:0 0 auto;
     border-radius:50%;
     line-height:1;
-    width:18px;
-    height:18px;
+    width:24px;
+    height:24px;
     display:inline-flex;
     align-items:center;
     justify-content:center;
+  }
+  .add-col-btn{
     background:var(--highlight);
     color:#fff;
-    border-color:var(--highlight);
+    border:1px solid var(--highlight);
   }
   .add-col-btn:hover{background:var(--highlight-dark);border-color:var(--highlight-dark);}
+  .collapse-col-btn{
+    background:var(--paper);
+    color:var(--ink-soft);
+    border:1px solid var(--line);
+  }
+  .collapse-col-btn:hover{background:var(--primary-soft);border-color:var(--primary);color:var(--primary);}
+  th.col-collapsed, td.col-collapsed{
+    min-width:0; width:32px; max-width:32px; padding:4px 2px;
+  }
+  th.col-collapsed .collapse-col-btn, td.col-collapsed .collapse-col-btn{margin:0 auto;}
+  td.col-collapsed{background:var(--primary-soft);}
   th.calc, td.calc{
     background:#EEF1F8;
   }
@@ -325,12 +347,6 @@
     border:1px solid var(--line);
     background:var(--paper);
     cursor:pointer;
-    font-size:0.72rem;
-    line-height:1;
-    width:21px;
-    height:21px;
-    border-radius:50%;
-    padding:0;
     color:var(--rust);
   }
   .row-btn:hover, .del-col:hover{background:var(--rust-soft);border-color:var(--rust);}
@@ -531,7 +547,8 @@ const DEFAULT_STATE = {
       income:{"Salário líquido":1450},
       accounts:{"Banco A":2150},
       investments:{"Broker A":{flow:50, saldo:1050}} },
-  ]
+  ],
+  uiCollapsed: { accountCols: [], investCols: [], investSection: false }
 };
 
 const state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -667,12 +684,16 @@ async function removeCategory(group, name){
     await openModal({message:'Tem de existir pelo menos uma coluna neste grupo.', confirmOnly:true, confirmLabel:'Ok'});
     return;
   }
-  const ok = await openModal({message:'Remover a coluna "'+name+'"? Os valores preenchidos nesta coluna serão perdidos.', confirmLabel:'Remover'});
-  if(!ok) return;
+  const typed = await openModal({
+    message:'Remover a coluna "'+name+'"? Ação irreversível — escreve <span class="confirm-word">Apagar</span> para confirmar.',
+    withInput:true, inputValue:'', confirmLabel:'Remover', requireMatch:'Apagar', allowHtml:true
+  });
+  if(!typed) return;
   state[group] = state[group].filter(c=>c!==name);
   const key = GROUPS[group].key;
   state.rows.forEach(r=>{ delete r[key][name]; });
   if(state.recurring[key]) delete state.recurring[key][name];
+  if(group==='accountCats') state.uiCollapsed.accountCols = state.uiCollapsed.accountCols.filter(c=>c!==name);
   render();
 }
 
@@ -709,10 +730,33 @@ async function removeBroker(name){
     await openModal({message:'Tem de existir pelo menos um broker.', confirmOnly:true, confirmLabel:'Ok'});
     return;
   }
-  const ok = await openModal({message:'Remover o broker "'+name+'"? Os valores preenchidos serão perdidos.', confirmLabel:'Remover'});
-  if(!ok) return;
+  const typed = await openModal({
+    message:'Remover o broker "'+name+'"? Ação irreversível — escreve <span class="confirm-word">Apagar</span> para confirmar.',
+    withInput:true, inputValue:'', confirmLabel:'Remover', requireMatch:'Apagar', allowHtml:true
+  });
+  if(!typed) return;
   state.investCats = state.investCats.filter(c=>c!==name);
   state.rows.forEach(r=>{ delete r.investments[name]; });
+  state.uiCollapsed.investCols = state.uiCollapsed.investCols.filter(c=>c!==name);
+  render();
+}
+
+function toggleAccountCol(name){
+  const idx = state.uiCollapsed.accountCols.indexOf(name);
+  if(idx>=0) state.uiCollapsed.accountCols.splice(idx,1);
+  else state.uiCollapsed.accountCols.push(name);
+  render();
+}
+
+function toggleInvestCol(name){
+  const idx = state.uiCollapsed.investCols.indexOf(name);
+  if(idx>=0) state.uiCollapsed.investCols.splice(idx,1);
+  else state.uiCollapsed.investCols.push(name);
+  render();
+}
+
+function toggleInvestSection(){
+  state.uiCollapsed.investSection = !state.uiCollapsed.investSection;
   render();
 }
 
@@ -773,7 +817,7 @@ function groupHeaderCell(label, span, onAdd, tooltip){
   th.colSpan = span;
   th.style.borderLeft = "1px solid var(--line)";
   const wrap = document.createElement('div');
-  wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.justifyContent='center'; wrap.style.gap='6px';
+  wrap.style.display='flex'; wrap.style.flexWrap='wrap'; wrap.style.alignItems='center'; wrap.style.justifyContent='center'; wrap.style.gap='6px';
   const span1 = document.createElement('span'); span1.textContent = label;
   wrap.appendChild(span1);
   if(tooltip){
@@ -814,9 +858,35 @@ function render(){
   groupRow.appendChild(monthTh);
 
   groupRow.appendChild(groupHeaderCell('Gestão Pessoal Base', state.incomeCats.length + state.accountCats.length, null));
-  const investTopTh = groupHeaderCell('Investimentos', state.investCats.length*2, addBroker);
-  investTopTh.classList.add('invest');
-  groupRow.appendChild(investTopTh);
+
+  const investSectionCollapsed = state.uiCollapsed.investSection;
+  if(investSectionCollapsed){
+    const investTopTh = document.createElement('th'); investTopTh.rowSpan=3; investTopTh.className='invest col-collapsed';
+    const expandBtn = document.createElement('button'); expandBtn.className='collapse-col-btn'; expandBtn.textContent='›';
+    expandBtn.title = 'Mostrar secção de investimentos';
+    expandBtn.onclick = toggleInvestSection;
+    investTopTh.appendChild(expandBtn);
+    groupRow.appendChild(investTopTh);
+  } else {
+    const investSpan = state.investCats.reduce((sum,b)=> sum + (state.uiCollapsed.investCols.includes(b) ? 1 : 2), 0);
+    const investTopTh = document.createElement('th');
+    investTopTh.colSpan = investSpan;
+    investTopTh.className = 'invest';
+    investTopTh.style.borderLeft = "1px solid var(--line)";
+    const wrap = document.createElement('div');
+    wrap.style.display='flex'; wrap.style.flexWrap='wrap'; wrap.style.alignItems='center'; wrap.style.justifyContent='center'; wrap.style.gap='6px';
+    const span1 = document.createElement('span'); span1.textContent = 'Investimentos';
+    wrap.appendChild(span1);
+    const collapseBtn = document.createElement('button'); collapseBtn.className='collapse-col-btn'; collapseBtn.textContent='‹';
+    collapseBtn.title = 'Esconder secção de investimentos';
+    collapseBtn.onclick = toggleInvestSection;
+    wrap.appendChild(collapseBtn);
+    const addBtn = document.createElement('button'); addBtn.textContent='+'; addBtn.className='add-col-btn'; addBtn.onclick = addBroker;
+    wrap.appendChild(addBtn);
+    investTopTh.appendChild(wrap);
+    groupRow.appendChild(investTopTh);
+  }
+
   groupRow.appendChild(groupHeaderCell('Cálculo automático', 7, null));
   const rowActTh = document.createElement('th'); rowActTh.rowSpan=3; rowActTh.setAttribute('aria-label','Ações'); rowActTh.style.fontWeight='600'; rowActTh.style.fontSize='0.72rem'; rowActTh.style.color='var(--ink-soft)'; groupRow.appendChild(rowActTh);
 
@@ -825,20 +895,36 @@ function render(){
     'Inclui contas à ordem e a prazo. Os juros de contas a prazo são normalmente tão reduzidos que não entram no cálculo de rentabilidade de investimentos — servem aqui apenas para refletir o património total.'));
 
   function brokerHeaderCell(name){
+    if(state.uiCollapsed.investCols.includes(name)){
+      const th = document.createElement('th'); th.rowSpan=2; th.className='invest col-collapsed';
+      const expandBtn = document.createElement('button'); expandBtn.className='collapse-col-btn'; expandBtn.textContent='›';
+      expandBtn.title = 'Mostrar: '+name;
+      expandBtn.onclick = ()=>toggleInvestCol(name);
+      th.appendChild(expandBtn);
+      return th;
+    }
     const th = document.createElement('th'); th.colSpan = 2; th.className='invest';
+    const wrap = document.createElement('div'); wrap.className='cat-row-cell';
     const label = document.createElement('span');
     label.className='cat-label'; label.contentEditable=true; label.textContent=name;
     label.title = 'Clica para editar o nome';
     label.onblur = ()=>renameBroker(name, label.textContent.trim());
-    th.appendChild(label);
+    wrap.appendChild(label);
+    const collapseBtn = document.createElement('button'); collapseBtn.className='collapse-col-btn'; collapseBtn.textContent='‹';
+    collapseBtn.title = 'Esconder: '+name;
+    collapseBtn.onclick = ()=>toggleInvestCol(name);
+    wrap.appendChild(collapseBtn);
     const del = document.createElement('button');
     del.className='del-col'; del.textContent='×';
     del.title = 'Remover broker';
     del.onclick = ()=>removeBroker(name);
-    th.appendChild(del);
+    wrap.appendChild(del);
+    th.appendChild(wrap);
     return th;
   }
-  state.investCats.forEach(b=>subRow.appendChild(brokerHeaderCell(b)));
+  if(!investSectionCollapsed){
+    state.investCats.forEach(b=>subRow.appendChild(brokerHeaderCell(b)));
+  }
 
   const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto Total","Poupança €","Poupança %"];
   calcLabels.forEach((t,idx)=>{
@@ -847,24 +933,43 @@ function render(){
   });
 
   function catCell(name, group){
+    if(group==='accountCats' && state.uiCollapsed.accountCols.includes(name)){
+      const th = document.createElement('th'); th.className='col-collapsed';
+      const expandBtn = document.createElement('button'); expandBtn.className='collapse-col-btn'; expandBtn.textContent='›';
+      expandBtn.title = 'Mostrar: '+name;
+      expandBtn.onclick = ()=>toggleAccountCol(name);
+      th.appendChild(expandBtn);
+      return th;
+    }
     const th = document.createElement('th');
+    const wrap = document.createElement('div'); wrap.className='cat-row-cell';
     const label = document.createElement('span');
     label.className='cat-label'; label.contentEditable=true; label.textContent=name;
     label.title = 'Clica para editar o nome';
     label.onblur = ()=>renameCategory(group, name, label.textContent.trim());
-    th.appendChild(label);
+    wrap.appendChild(label);
+    if(group==='accountCats'){
+      const collapseBtn = document.createElement('button'); collapseBtn.className='collapse-col-btn'; collapseBtn.textContent='‹';
+      collapseBtn.title = 'Esconder: '+name;
+      collapseBtn.onclick = ()=>toggleAccountCol(name);
+      wrap.appendChild(collapseBtn);
+    }
     const del = document.createElement('button');
     del.className='del-col'; del.textContent='×';
     del.onclick = ()=>removeCategory(group, name);
-    th.appendChild(del);
+    wrap.appendChild(del);
+    th.appendChild(wrap);
     return th;
   }
   state.incomeCats.forEach(c=>catRow.appendChild(catCell(c,'incomeCats')));
   state.accountCats.forEach(c=>catRow.appendChild(catCell(c,'accountCats')));
-  state.investCats.forEach(()=>{
-    const th1 = document.createElement('th'); th1.className='invest'; th1.textContent='Entradas/Saídas'; catRow.appendChild(th1);
-    const th2 = document.createElement('th'); th2.className='invest'; th2.textContent='Saldo'; catRow.appendChild(th2);
-  });
+  if(!investSectionCollapsed){
+    state.investCats.forEach(b=>{
+      if(state.uiCollapsed.investCols.includes(b)) return; // já coberto pela célula com rowSpan=2 no subRow
+      const th1 = document.createElement('th'); th1.className='invest'; th1.textContent='Entradas/Saídas'; catRow.appendChild(th1);
+      const th2 = document.createElement('th'); th2.className='invest'; th2.textContent='Saldo'; catRow.appendChild(th2);
+    });
+  }
 
   state.rows.forEach((row,i)=>{
     const tr = document.createElement('tr');
@@ -926,11 +1031,23 @@ function render(){
       td.appendChild(inp); return td;
     }
     state.incomeCats.forEach(c=>tr.appendChild(valCell(row.income,c)));
-    state.accountCats.forEach(c=>tr.appendChild(valCell(row.accounts,c)));
-    state.investCats.forEach(b=>{
-      const flowTd = valCell(row.investments[b],'flow','invest'); flowTd.setAttribute('data-label', b+' — Entradas/Saídas'); tr.appendChild(flowTd);
-      const saldoTd = valCell(row.investments[b],'saldo','invest'); saldoTd.setAttribute('data-label', b+' — Saldo'); tr.appendChild(saldoTd);
+    state.accountCats.forEach(c=>{
+      if(state.uiCollapsed.accountCols.includes(c)){
+        const td = document.createElement('td'); td.className='col-collapsed'; tr.appendChild(td);
+      } else {
+        tr.appendChild(valCell(row.accounts,c));
+      }
     });
+    if(!investSectionCollapsed){
+      state.investCats.forEach(b=>{
+        if(state.uiCollapsed.investCols.includes(b)){
+          const td = document.createElement('td'); td.className='invest col-collapsed'; tr.appendChild(td);
+          return;
+        }
+        const flowTd = valCell(row.investments[b],'flow','invest'); flowTd.setAttribute('data-label', b+' — Entradas/Saídas'); tr.appendChild(flowTd);
+        const saldoTd = valCell(row.investments[b],'saldo','invest'); saldoTd.setAttribute('data-label', b+' — Saldo'); tr.appendChild(saldoTd);
+      });
+    }
 
     const c = computeRow(i);
     const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto Total","Poupança €","Poupança %"];
@@ -1074,6 +1191,10 @@ function ensureInvestData(){
       if(!r.investments[b]) r.investments[b] = {flow:0, saldo:0};
     });
   });
+  if(!state.uiCollapsed) state.uiCollapsed = {accountCols:[], investCols:[], investSection:false};
+  if(!Array.isArray(state.uiCollapsed.accountCols)) state.uiCollapsed.accountCols = [];
+  if(!Array.isArray(state.uiCollapsed.investCols)) state.uiCollapsed.investCols = [];
+  if(typeof state.uiCollapsed.investSection !== 'boolean') state.uiCollapsed.investSection = false;
 }
 
 function loadState(){
@@ -1087,6 +1208,7 @@ function loadState(){
       state.accountCats = parsed.accountCats || state.accountCats;
       state.investCats = parsed.investCats || state.investCats;
       state.recurring = parsed.recurring || state.recurring;
+      state.uiCollapsed = parsed.uiCollapsed || state.uiCollapsed;
       state.rows = parsed.rows;
       state.rows.forEach(r=>{ if(r.date && r.date.length === 7) r.date = r.date + '-15'; });
       ensureInvestData();
@@ -1169,6 +1291,7 @@ async function importBackup(file){
     state.accountCats = parsed.accountCats || [];
     state.investCats = parsed.investCats || [];
     state.recurring = parsed.recurring || {income:{}};
+    state.uiCollapsed = parsed.uiCollapsed || {accountCols:[], investCols:[], investSection:false};
     state.rows = parsed.rows;
     state.rows.forEach(r=>{ if(r.date && r.date.length === 7) r.date = r.date + '-15'; });
     ensureInvestData();
