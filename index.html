@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão Financeira Pessoal: Receitas, Despesas e Poupança</title>
-<meta name="description" content="Ferramenta de gestão financeira pessoal: regista receitas e despesas, calcula a poupança mensal automaticamente e prepara-te para investir.">
+<title>Gestão Financeira Pessoal: Receitas, Despesas, Poupança e Investimento</title>
+<meta name="description" content="Ferramenta de gestão financeira pessoal: regista receitas, despesas e investimentos, e calcula automaticamente a poupança mensal e o património total.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -26,6 +26,10 @@
     --highlight-dark: #D67A2E;
     --navy: #1B2F4D;
     --primary-soft: #E7ECFC;
+    --invest-tint: #F1ECFB;
+    --invest-tint-dark: #6C4FDE;
+    --total-tint: #E3F0E8;
+    --total-tint-dark: #1F6B45;
   }
   *{box-sizing:border-box;}
   body{
@@ -193,6 +197,16 @@
     border-bottom:1px solid var(--line);
     white-space:nowrap;
   }
+  thead tr.sub-row th{
+    font-family:'Public Sans', sans-serif;
+    font-weight:600;
+    font-size:0.78rem;
+    color:var(--ink);
+    text-align:center;
+    padding:6px 5px 4px;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
   thead tr.cat-row th{
     font-size:0.78rem;
     padding:4px 5px 7px;
@@ -201,6 +215,8 @@
     min-width:92px;
     vertical-align:bottom;
   }
+  th.invest, td.invest{background:var(--invest-tint);}
+  th.total-patrimonio, td.total-patrimonio{background:var(--total-tint); color:var(--total-tint-dark); font-weight:700;}
   .cat-label{
     display:inline-flex;
     align-items:center;
@@ -413,11 +429,12 @@
       <ul>
         <li>Regista os rendimentos de cada mês.</li>
         <li>Regista os saldos de todas as tuas contas bancárias.</li>
-        <li>A poupança é calculada automaticamente pela diferença de património face ao mês anterior.</li>
-        <li>As colunas são editáveis — renomeia, remove ou acrescenta categorias conforme a tua situação financeira.</li>
+        <li>Regista as entradas/saídas e o saldo dos teus investimentos (um ou mais brokers) — o dinheiro que investes continua a contar como poupança, não como despesa.</li>
+        <li>A poupança é calculada automaticamente: soma a variação das tuas contas bancárias com o que entrou nos investimentos nesse mês. A valorização ou desvalorização de mercado do saldo investido não entra nesta conta, porque não é dinheiro que decidiste poupar naquele mês.</li>
+        <li>As colunas são editáveis — renomeia, remove ou acrescenta categorias e brokers conforme a tua situação financeira.</li>
         <li>Os dados ficam guardados automaticamente neste browser; usa "Exportar backup (JSON)" para teres sempre uma cópia de segurança e nunca perderes o teu histórico — é também o único ficheiro que consegues reimportar aqui.</li>
       </ul>
-      <p>Esta é também a base para começares a acompanhar os teus investimentos — como ETFs — com valorização mensal, rentabilidade anualizada e rentabilidade a 12 meses.</p>
+      <p>Esta é também a base para acompanhares a valorização dos teus investimentos — como ETFs — com rentabilidade mensal, anualizada e a 12 meses.</p>
     </details>
   </header>
 
@@ -441,6 +458,7 @@
         <table id="mainTable">
           <thead>
             <tr class="group-row" id="groupRow"></tr>
+            <tr class="sub-row" id="subRow"></tr>
             <tr class="cat-row" id="catRow"></tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -500,16 +518,19 @@ function monthDateISO(offsetMonths){
 const DEFAULT_STATE = {
   incomeCats: ["Salário líquido"],
   accountCats: ["Banco A"],
+  investCats: ["Broker A"],
   recurring: {
     income: {"Salário líquido":true}
   },
   rows: [
     { date:monthDateISO(-1),
       income:{"Salário líquido":1450},
-      accounts:{"Banco A":2000} },
+      accounts:{"Banco A":2000},
+      investments:{"Broker A":{flow:0, saldo:1000}} },
     { date:monthDateISO(0),
       income:{"Salário líquido":1450},
-      accounts:{"Banco A":2150} },
+      accounts:{"Banco A":2150},
+      investments:{"Broker A":{flow:50, saldo:1050}} },
   ]
 };
 
@@ -539,18 +560,27 @@ function displayToIsoDate(disp){
 }
 
 function sumCat(obj){ return Object.values(obj).reduce((a,b)=>a+(Number(b)||0),0); }
+function sumInvestSaldo(investObj){ return Object.values(investObj).reduce((a,b)=>a+(Number(b.saldo)||0),0); }
+function sumInvestFlow(investObj){ return Object.values(investObj).reduce((a,b)=>a+(Number(b.flow)||0),0); }
 
+// A poupança soma a variação das contas com as entradas líquidas nos investimentos desse mês
+// — dinheiro que saiu do salário para investir continua "poupado", só mudou de sítio.
+// A valorização/desvalorização do saldo dos investimentos (ganhos ou perdas de mercado) não entra aqui,
+// porque não é dinheiro que decidiste poupar esse mês.
 function computeRow(i){
   const row = state.rows[i];
   const prev = state.rows[i-1];
   const totalIncome = sumCat(row.income);
   const totalAccounts = sumCat(row.accounts);
+  const totalInvest = sumInvestSaldo(row.investments);
+  const investFlow = sumInvestFlow(row.investments);
+  const patrimonioTotal = totalAccounts + totalInvest;
   const prevAccounts = prev ? sumCat(prev.accounts) : null;
-  const variacao = prevAccounts===null ? null : totalAccounts - prevAccounts;
-  const gastoTotal = variacao===null ? null : totalIncome - variacao;
-  const poupEUR = variacao;
+  const variacaoContas = prevAccounts===null ? null : totalAccounts - prevAccounts;
+  const poupEUR = variacaoContas===null ? null : variacaoContas + investFlow;
+  const gastoTotal = poupEUR===null ? null : totalIncome - poupEUR;
   const poupPct = (poupEUR===null || totalIncome===0) ? null : (poupEUR/totalIncome*100);
-  return {totalIncome,totalAccounts,variacao,gastoTotal,poupEUR,poupPct};
+  return {totalIncome,totalAccounts,totalInvest,patrimonioTotal,gastoTotal,poupEUR,poupPct};
 }
 
 let modalResolve = null;
@@ -665,6 +695,40 @@ async function renameCategory(group, oldName, newName){
   render();
 }
 
+async function addBroker(){
+  const name = await openModal({message:'Nome do broker/corretora:', withInput:true, inputValue:'', confirmLabel:'Adicionar'});
+  if(!name) return;
+  if(state.investCats.includes(name)){ await openModal({message:'Já existe um broker com esse nome.', confirmOnly:true, confirmLabel:'Ok'}); return; }
+  state.investCats.push(name);
+  state.rows.forEach(r=>{ r.investments[name] = {flow:0, saldo:0}; });
+  render();
+}
+
+async function removeBroker(name){
+  if(state.investCats.length<=1){
+    await openModal({message:'Tem de existir pelo menos um broker.', confirmOnly:true, confirmLabel:'Ok'});
+    return;
+  }
+  const ok = await openModal({message:'Remover o broker "'+name+'"? Os valores preenchidos serão perdidos.', confirmLabel:'Remover'});
+  if(!ok) return;
+  state.investCats = state.investCats.filter(c=>c!==name);
+  state.rows.forEach(r=>{ delete r.investments[name]; });
+  render();
+}
+
+async function renameBroker(oldName, newName){
+  if(!newName || newName===oldName) return;
+  if(state.investCats.includes(newName)){
+    await openModal({message:'Já existe um broker com esse nome.', confirmOnly:true, confirmLabel:'Ok'});
+    render(); return;
+  }
+  state.investCats = state.investCats.map(c=>c===oldName?newName:c);
+  state.rows.forEach(r=>{
+    if(oldName in r.investments){ r.investments[newName]=r.investments[oldName]; delete r.investments[oldName]; }
+  });
+  render();
+}
+
 function suggestNextDate(last){
   if(last && last.date){
     const [y,m] = last.date.split('-').map(Number);
@@ -682,7 +746,10 @@ function addMonth(){
     income[c] = (last && state.recurring.income[c]) ? (last.income[c]||0) : 0;
   });
   const accounts = {}; state.accountCats.forEach(c=>accounts[c]=last ? (last.accounts[c]||0) : 0);
-  state.rows.push({date:suggestNextDate(last), income, accounts});
+  const investments = {}; state.investCats.forEach(b=>{
+    investments[b] = { flow:0, saldo: last ? (last.investments[b]?.saldo||0) : 0 };
+  });
+  state.rows.push({date:suggestNextDate(last), income, accounts, investments});
   render();
 }
 
@@ -701,7 +768,7 @@ function isPastOrCurrentMonth(iso){
   return iso.slice(0,7) <= currentYM;
 }
 
-function groupHeaderCell(label, span, group, tooltip){
+function groupHeaderCell(label, span, onAdd, tooltip){
   const th = document.createElement('th');
   th.colSpan = span;
   th.style.borderLeft = "1px solid var(--line)";
@@ -716,10 +783,10 @@ function groupHeaderCell(label, span, group, tooltip){
     info.className = 'info-icon';
     wrap.appendChild(info);
   }
-  if(group){
+  if(onAdd){
     const btn = document.createElement('button');
     btn.textContent = '+'; btn.className='add-col-btn';
-    btn.onclick = ()=>addCategory(group);
+    btn.onclick = onAdd;
     wrap.appendChild(btn);
   }
   th.appendChild(wrap);
@@ -728,11 +795,12 @@ function groupHeaderCell(label, span, group, tooltip){
 
 function render(){
   const groupRow = document.getElementById('groupRow');
+  const subRow = document.getElementById('subRow');
   const catRow = document.getElementById('catRow');
   const tbody = document.getElementById('tbody');
-  groupRow.innerHTML=''; catRow.innerHTML=''; tbody.innerHTML='';
+  groupRow.innerHTML=''; subRow.innerHTML=''; catRow.innerHTML=''; tbody.innerHTML='';
 
-  const monthTh = document.createElement('th'); monthTh.rowSpan=2; monthTh.className='month-col';
+  const monthTh = document.createElement('th'); monthTh.rowSpan=3; monthTh.className='month-col';
   const monthLabelWrap = document.createElement('div');
   monthLabelWrap.style.display='flex'; monthLabelWrap.style.alignItems='center'; monthLabelWrap.style.justifyContent='center'; monthLabelWrap.style.gap='5px';
   const monthLabelText = document.createElement('span'); monthLabelText.textContent='Mês';
@@ -745,11 +813,38 @@ function render(){
   monthTh.appendChild(monthLabelWrap);
   groupRow.appendChild(monthTh);
 
-  groupRow.appendChild(groupHeaderCell('Rendimentos', state.incomeCats.length, 'incomeCats'));
-  groupRow.appendChild(groupHeaderCell('Saldos de contas', state.accountCats.length, 'accountCats',
+  groupRow.appendChild(groupHeaderCell('Gestão Pessoal Base', state.incomeCats.length + state.accountCats.length, null));
+  const investTopTh = groupHeaderCell('Investimentos', state.investCats.length*2, addBroker);
+  investTopTh.classList.add('invest');
+  groupRow.appendChild(investTopTh);
+  groupRow.appendChild(groupHeaderCell('Cálculo automático', 7, null));
+  const rowActTh = document.createElement('th'); rowActTh.rowSpan=3; rowActTh.setAttribute('aria-label','Ações'); rowActTh.style.fontWeight='600'; rowActTh.style.fontSize='0.72rem'; rowActTh.style.color='var(--ink-soft)'; groupRow.appendChild(rowActTh);
+
+  subRow.appendChild(groupHeaderCell('Rendimentos', state.incomeCats.length, ()=>addCategory('incomeCats')));
+  subRow.appendChild(groupHeaderCell('Saldos de contas', state.accountCats.length, ()=>addCategory('accountCats'),
     'Inclui contas à ordem e a prazo. Os juros de contas a prazo são normalmente tão reduzidos que não entram no cálculo de rentabilidade de investimentos — servem aqui apenas para refletir o património total.'));
-  groupRow.appendChild(groupHeaderCell('Cálculo automático', 5, null));
-  const rowActTh = document.createElement('th'); rowActTh.rowSpan=2; rowActTh.setAttribute('aria-label','Ações'); rowActTh.style.fontWeight='600'; rowActTh.style.fontSize='0.72rem'; rowActTh.style.color='var(--ink-soft)'; groupRow.appendChild(rowActTh);
+
+  function brokerHeaderCell(name){
+    const th = document.createElement('th'); th.colSpan = 2; th.className='invest';
+    const label = document.createElement('span');
+    label.className='cat-label'; label.contentEditable=true; label.textContent=name;
+    label.title = 'Clica para editar o nome';
+    label.onblur = ()=>renameBroker(name, label.textContent.trim());
+    th.appendChild(label);
+    const del = document.createElement('button');
+    del.className='del-col'; del.textContent='×';
+    del.title = 'Remover broker';
+    del.onclick = ()=>removeBroker(name);
+    th.appendChild(del);
+    return th;
+  }
+  state.investCats.forEach(b=>subRow.appendChild(brokerHeaderCell(b)));
+
+  const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto Total","Poupança €","Poupança %"];
+  calcLabels.forEach((t,idx)=>{
+    const th=document.createElement('th'); th.className = idx===3 ? 'calc total-patrimonio' : 'calc'; th.rowSpan=2; th.textContent=t;
+    subRow.appendChild(th);
+  });
 
   function catCell(name, group){
     const th = document.createElement('th');
@@ -766,8 +861,10 @@ function render(){
   }
   state.incomeCats.forEach(c=>catRow.appendChild(catCell(c,'incomeCats')));
   state.accountCats.forEach(c=>catRow.appendChild(catCell(c,'accountCats')));
-  ["Total Rendimentos","Total Contas","Gasto Total","Poupança €","Poupança %"]
-    .forEach(t=>{ const th=document.createElement('th'); th.className='calc'; th.textContent=t; catRow.appendChild(th); });
+  state.investCats.forEach(()=>{
+    const th1 = document.createElement('th'); th1.className='invest'; th1.textContent='Entradas/Saídas'; catRow.appendChild(th1);
+    const th2 = document.createElement('th'); th2.className='invest'; th2.textContent='Saldo'; catRow.appendChild(th2);
+  });
 
   state.rows.forEach((row,i)=>{
     const tr = document.createElement('tr');
@@ -810,9 +907,10 @@ function render(){
     }
     tr.appendChild(tdMonth);
 
-    function valCell(obj, key){
+    function valCell(obj, key, extraClass){
       const td = document.createElement('td');
       td.setAttribute('data-label', key);
+      if(extraClass) td.classList.add(extraClass);
       const inp = document.createElement('input'); inp.type='text'; inp.inputMode='decimal';
       inp.value = (obj[key] === 0 || obj[key] === undefined) ? '' : String(obj[key]).replace('.', ',');
       inp.addEventListener('focus', e=>e.target.select());
@@ -829,16 +927,20 @@ function render(){
     }
     state.incomeCats.forEach(c=>tr.appendChild(valCell(row.income,c)));
     state.accountCats.forEach(c=>tr.appendChild(valCell(row.accounts,c)));
+    state.investCats.forEach(b=>{
+      const flowTd = valCell(row.investments[b],'flow','invest'); flowTd.setAttribute('data-label', b+' — Entradas/Saídas'); tr.appendChild(flowTd);
+      const saldoTd = valCell(row.investments[b],'saldo','invest'); saldoTd.setAttribute('data-label', b+' — Saldo'); tr.appendChild(saldoTd);
+    });
 
     const c = computeRow(i);
-    const calcLabels = ["Total Rendimentos","Total Contas","Gasto Total","Poupança €","Poupança %"];
+    const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto Total","Poupança €","Poupança %"];
     const calcVals = [
-      fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.gastoTotal),
-      fmtEUR(c.poupEUR), fmtPct(c.poupPct)
+      fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.totalInvest), fmtEUR(c.patrimonioTotal),
+      fmtEUR(c.gastoTotal), fmtEUR(c.poupEUR), fmtPct(c.poupPct)
     ];
-    const posneg = [null,null,null,c.poupEUR,c.poupPct];
+    const posneg = [null,null,null,null,null,c.poupEUR,c.poupPct];
     calcVals.forEach((v,idx)=>{
-      const td=document.createElement('td'); td.className='calc'; td.textContent=v;
+      const td=document.createElement('td'); td.className = idx===3 ? 'calc total-patrimonio' : 'calc'; td.textContent=v;
       td.setAttribute('data-label', calcLabels[idx]);
       const num = posneg[idx];
       if(num!==null && num!==undefined && !isNaN(num)){
@@ -920,10 +1022,10 @@ function refreshCalc(){
     if(!tr) return;
     const c = computeRow(i);
     const calcVals = [
-      fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.gastoTotal),
-      fmtEUR(c.poupEUR), fmtPct(c.poupPct)
+      fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.totalInvest), fmtEUR(c.patrimonioTotal),
+      fmtEUR(c.gastoTotal), fmtEUR(c.poupEUR), fmtPct(c.poupPct)
     ];
-    const posneg = [null,null,null,c.poupEUR,c.poupPct];
+    const posneg = [null,null,null,null,null,c.poupEUR,c.poupPct];
     const calcTds = tr.querySelectorAll('td.calc');
     calcTds.forEach((td,idx)=>{
       td.textContent = calcVals[idx];
@@ -962,6 +1064,18 @@ function saveState(){
   }
 }
 
+// Garante que investCats existe e que cada linha tem um objeto investments coerente com essas colunas —
+// necessário para dados guardados antes da secção de Investimentos existir.
+function ensureInvestData(){
+  if(!Array.isArray(state.investCats) || state.investCats.length===0) state.investCats = ["Broker A"];
+  state.rows.forEach(r=>{
+    if(!r.investments) r.investments = {};
+    state.investCats.forEach(b=>{
+      if(!r.investments[b]) r.investments[b] = {flow:0, saldo:0};
+    });
+  });
+}
+
 function loadState(){
   if(!storageAvailable) return false;
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -971,9 +1085,11 @@ function loadState(){
     if(parsed && Array.isArray(parsed.rows)){
       state.incomeCats = parsed.incomeCats || state.incomeCats;
       state.accountCats = parsed.accountCats || state.accountCats;
+      state.investCats = parsed.investCats || state.investCats;
       state.recurring = parsed.recurring || state.recurring;
       state.rows = parsed.rows;
       state.rows.forEach(r=>{ if(r.date && r.date.length === 7) r.date = r.date + '-15'; });
+      ensureInvestData();
       return true;
     }
   }catch(e){ /* ignora backup corrompido */ }
@@ -1006,7 +1122,8 @@ function exportCSV(){
   const headers = ['Data'];
   state.incomeCats.forEach(c=>headers.push(c));
   state.accountCats.forEach(c=>headers.push(c));
-  headers.push('Total Rendimentos','Total Contas','Gasto Total','Poupança €','Poupança %');
+  state.investCats.forEach(b=>headers.push(b+' — Entradas/Saídas', b+' — Saldo'));
+  headers.push('Total Rendimentos','Total Contas','Total Investimentos','Património Total','Gasto Total','Poupança €','Poupança %');
 
   const lines = [headers];
   state.rows.forEach((row,i)=>{
@@ -1014,9 +1131,12 @@ function exportCSV(){
     const line = [row.date || ''];
     state.incomeCats.forEach(cat=>line.push(row.income[cat] ?? 0));
     state.accountCats.forEach(cat=>line.push(row.accounts[cat] ?? 0));
+    state.investCats.forEach(b=>line.push(row.investments[b]?.flow ?? 0, row.investments[b]?.saldo ?? 0));
     line.push(
       c.totalIncome,
       c.totalAccounts,
+      c.totalInvest,
+      c.patrimonioTotal,
       c.gastoTotal===null ? '' : c.gastoTotal,
       c.poupEUR===null ? '' : c.poupEUR,
       c.poupPct===null ? '' : c.poupPct.toFixed(1)
@@ -1047,9 +1167,11 @@ async function importBackup(file){
     if(!ok) return;
     state.incomeCats = parsed.incomeCats || [];
     state.accountCats = parsed.accountCats || [];
+    state.investCats = parsed.investCats || [];
     state.recurring = parsed.recurring || {income:{}};
     state.rows = parsed.rows;
     state.rows.forEach(r=>{ if(r.date && r.date.length === 7) r.date = r.date + '-15'; });
+    ensureInvestData();
     render();
   }catch(e){
     await openModal({message:'Este ficheiro não é um backup válido desta tabela.', confirmOnly:true, confirmLabel:'Ok'});
