@@ -358,8 +358,6 @@
     width:88px;
     font-size:0.78rem;
   }
-  .pos{color:var(--green);}
-  .neg{color:var(--rust);}
   .muted{color:var(--ink-soft);font-style:italic;font-family:'Public Sans', sans-serif;font-size:0.8rem;}
   .row-actions{width:36px;text-align:center;}
   .row-btns{display:flex; gap:4px; justify-content:center;}
@@ -372,18 +370,6 @@
   .row-btn:hover, .del-col:hover{background:var(--rust-soft);border-color:var(--rust);}
   .row-btn:disabled{opacity:0.3;cursor:default;}
   .row-btn:disabled:hover{background:var(--paper);border-color:var(--line);color:var(--ink-soft);}
-  .foot-note{
-    padding:10px 12px;
-    font-size:0.73rem;
-    color:var(--ink-soft);
-    border-top:1px solid var(--line);
-    line-height:1.5;
-  }
-  .legend{
-    display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:0.78rem;color:var(--ink-soft);
-  }
-  .legend span{display:inline-flex;align-items:center;gap:6px;}
-  .swatch{width:10px;height:10px;border-radius:2px;display:inline-block;}
   .modal-overlay{
     position:fixed; inset:0; background:rgba(15,27,56,0.45);
     display:flex; align-items:center; justify-content:center; z-index:100;
@@ -469,6 +455,7 @@
         <li>A poupança é calculada automaticamente: soma a variação das tuas contas bancárias com o que entrou nos investimentos nesse mês. A valorização ou desvalorização de mercado do saldo investido não entra nesta conta, porque não é dinheiro que decidiste poupar naquele mês.</li>
         <li>As colunas são editáveis — renomeia, remove ou acrescenta categorias e brokers conforme a tua situação financeira.</li>
         <li>Os dados ficam guardados automaticamente neste browser; usa "Exportar backup (JSON)" para teres sempre uma cópia de segurança e nunca perderes o teu histórico — é também o único ficheiro que consegues reimportar aqui.</li>
+        <li>No primeiro mês registado, como ainda não há um mês anterior para comparar saldos, o Gasto mensal e a Poupança aparecem como "—" — a partir do segundo mês o cálculo funciona normalmente.</li>
       </ul>
       <p>Esta é também a base para acompanhares a valorização dos teus investimentos — como ETFs — com rentabilidade mensal, anualizada e a 12 meses.</p>
     </details>
@@ -505,13 +492,6 @@
         <button id="clearAllBtn" class="small danger" title="Apagar todos os meses e valores preenchidos">Limpar tudo</button>
         <span class="info-icon backup-info" data-tooltip="Estes dados só ficam guardados neste browser — se limpares o histórico, trocares de dispositivo ou o espaço de armazenamento falhar, perdes tudo. O JSON é o único formato que consegues reimportar aqui; o CSV é só para abrir noutras ferramentas.">ⓘ</span>
         <span id="saveStatus" class="save-status"></span>
-      </div>
-    </div>
-    <div class="foot-note">
-      <strong>Primeiro mês:</strong> como ainda não há um mês anterior para comparar saldos, o Gasto mensal e a Poupança desse mês aparecem como "—". A partir do segundo mês, o cálculo funciona normalmente.
-      <div class="legend">
-        <span><span class="swatch" style="background:var(--green)"></span> Poupança positiva</span>
-        <span><span class="swatch" style="background:var(--rust)"></span> Poupança negativa (gastou mais do que recebeu)</span>
       </div>
     </div>
   </div>
@@ -574,8 +554,17 @@ const DEFAULT_STATE = {
 
 const state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 
-const fmtEUR = v => (v===null||v===undefined||isNaN(v)) ? "—" :
-  v.toLocaleString('pt-PT', {style:'currency', currency:'EUR', maximumFractionDigits:0});
+// Separador de milhares com espaço, aplicado de forma consistente a partir de 1000
+// — o toLocaleString('pt-PT') só o faz a partir de 10 000, o que fica inconsistente entre valores.
+function groupThousands(digits){
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+function fmtEUR(v){
+  if(v===null||v===undefined||isNaN(v)) return "—";
+  const rounded = Math.round(v);
+  const sign = rounded < 0 ? '-' : '';
+  return sign + groupThousands(String(Math.abs(rounded))) + ' €';
+}
 const fmtPct = v => (v===null||v===undefined||isNaN(v)) ? "—" :
   v.toLocaleString('pt-PT', {maximumFractionDigits:1}) + "%";
 
@@ -878,7 +867,7 @@ function render(){
   monthTh.appendChild(monthLabelWrap);
   groupRow.appendChild(monthTh);
 
-  groupRow.appendChild(groupHeaderCell('Gestão Pessoal Base', state.incomeCats.length + state.accountCats.length, null));
+  groupRow.appendChild(groupHeaderCell('Gestão pessoal base', state.incomeCats.length + state.accountCats.length, null));
 
   const investSectionCollapsed = state.uiCollapsed.investSection;
   if(investSectionCollapsed){
@@ -951,7 +940,7 @@ function render(){
     state.investCats.forEach(b=>subRow.appendChild(brokerHeaderCell(b)));
   }
 
-  const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto mensal","Poupança €","Poupança %"];
+  const calcLabels = ["Total em rendimentos","Total em contas","Total em investimentos","Património total","Gasto mensal","Poupança €","Poupança %"];
   calcLabels.forEach((t,idx)=>{
     const th=document.createElement('th'); th.className = idx===3 ? 'calc total-patrimonio' : 'calc'; th.rowSpan=2; th.textContent=t;
     subRow.appendChild(th);
@@ -991,7 +980,7 @@ function render(){
   if(!investSectionCollapsed){
     state.investCats.forEach(b=>{
       if(state.uiCollapsed.investCols.includes(b)) return; // já coberto pela célula com rowSpan=2 no subRow
-      const th1 = document.createElement('th'); th1.className='invest'; th1.textContent='Entradas/Saídas'; catRow.appendChild(th1);
+      const th1 = document.createElement('th'); th1.className='invest'; th1.textContent='Entradas/saídas'; catRow.appendChild(th1);
       const th2 = document.createElement('th'); th2.className='invest'; th2.textContent='Saldo'; catRow.appendChild(th2);
     });
   }
@@ -1073,25 +1062,20 @@ function render(){
           const td = document.createElement('td'); td.className='invest col-collapsed'; tr.appendChild(td);
           return;
         }
-        const flowTd = valCell(row.investments[b],'flow','invest'); flowTd.setAttribute('data-label', b+' — Entradas/Saídas'); tr.appendChild(flowTd);
+        const flowTd = valCell(row.investments[b],'flow','invest'); flowTd.setAttribute('data-label', b+' — Entradas/saídas'); tr.appendChild(flowTd);
         const saldoTd = valCell(row.investments[b],'saldo','invest'); saldoTd.setAttribute('data-label', b+' — Saldo'); tr.appendChild(saldoTd);
       });
     }
 
     const c = computeRow(i);
-    const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto mensal","Poupança €","Poupança %"];
+    const calcLabels = ["Total em rendimentos","Total em contas","Total em investimentos","Património total","Gasto mensal","Poupança €","Poupança %"];
     const calcVals = [
       fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.totalInvest), fmtEUR(c.patrimonioTotal),
       fmtEUR(c.gastoTotal), fmtEUR(c.poupEUR), fmtPct(c.poupPct)
     ];
-    const posneg = [null,null,null,null,null,c.poupEUR,c.poupPct];
     calcVals.forEach((v,idx)=>{
       const td=document.createElement('td'); td.className = idx===3 ? 'calc total-patrimonio' : 'calc'; td.textContent=v;
       td.setAttribute('data-label', calcLabels[idx]);
-      const num = posneg[idx];
-      if(num!==null && num!==undefined && !isNaN(num)){
-        td.classList.add(num>=0?'pos':'neg');
-      }
       tr.appendChild(td);
     });
 
@@ -1171,15 +1155,9 @@ function refreshCalc(){
       fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.totalInvest), fmtEUR(c.patrimonioTotal),
       fmtEUR(c.gastoTotal), fmtEUR(c.poupEUR), fmtPct(c.poupPct)
     ];
-    const posneg = [null,null,null,null,null,c.poupEUR,c.poupPct];
     const calcTds = tr.querySelectorAll('td.calc');
     calcTds.forEach((td,idx)=>{
       td.textContent = calcVals[idx];
-      td.classList.remove('pos','neg');
-      const num = posneg[idx];
-      if(num!==null && num!==undefined && !isNaN(num)){
-        td.classList.add(num>=0?'pos':'neg');
-      }
     });
   });
   saveState();
@@ -1279,8 +1257,8 @@ function exportCSV(){
   const headers = ['Data'];
   state.incomeCats.forEach(c=>headers.push(c));
   state.accountCats.forEach(c=>headers.push(c));
-  state.investCats.forEach(b=>headers.push(b+' — Entradas/Saídas', b+' — Saldo'));
-  headers.push('Total Rendimentos','Total Contas','Total Investimentos','Património Total','Gasto mensal','Poupança €','Poupança %');
+  state.investCats.forEach(b=>headers.push(b+' — Entradas/saídas', b+' — Saldo'));
+  headers.push('Total em rendimentos','Total em contas','Total em investimentos','Património total','Gasto mensal','Poupança €','Poupança %');
 
   const lines = [headers];
   state.rows.forEach((row,i)=>{
