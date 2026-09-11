@@ -202,16 +202,6 @@
     border-radius:2px;
   }
   .cat-label:focus{background:var(--primary-soft);}
-  .del-col{
-    border:none;
-    background:none;
-    color:var(--ink-soft);
-    font-size:0.85rem;
-    cursor:pointer;
-    padding:0 2px;
-    line-height:1;
-  }
-  .del-col:hover{color:var(--rust);}
   .add-col-btn{
     font-size:0.68rem;
     padding:2px 6px;
@@ -304,7 +294,7 @@
   .muted{color:var(--ink-soft);font-style:italic;font-family:'Public Sans', sans-serif;font-size:0.8rem;}
   .row-actions{width:36px;text-align:center;}
   .row-btns{display:flex; gap:4px; justify-content:center;}
-  .row-btn{
+  .row-btn, .del-col{
     border:1px solid var(--line);
     background:var(--paper);
     cursor:pointer;
@@ -314,15 +304,11 @@
     height:21px;
     border-radius:50%;
     padding:0;
-    color:var(--ink-soft);
-  }
-  .row-btn:hover{background:var(--primary-soft);border-color:var(--primary);color:var(--ink);}
-  .row-btn:disabled{opacity:0.3;cursor:default;}
-  .row-btn:disabled:hover{background:var(--paper);border-color:var(--line);color:var(--ink-soft);}
-  .del-row{
     color:var(--rust);
   }
-  .del-row:hover{background:var(--rust-soft);border-color:var(--rust);}
+  .row-btn:hover, .del-col:hover{background:var(--rust-soft);border-color:var(--rust);}
+  .row-btn:disabled{opacity:0.3;cursor:default;}
+  .row-btn:disabled:hover{background:var(--paper);border-color:var(--line);color:var(--ink-soft);}
   .foot-note{
     padding:10px 12px;
     font-size:0.73rem;
@@ -413,7 +399,7 @@
       <summary>Saber como funciona</summary>
       <p>Em vez de teres de categorizar cada despesa — o que ninguém mantém a longo prazo — o método baseia-se na variação do teu património de mês para mês:</p>
       <ul>
-        <li>Regista os rendimentos fixos e extra de cada mês.</li>
+        <li>Regista os rendimentos de cada mês.</li>
         <li>Regista os saldos de todas as tuas contas bancárias.</li>
         <li>A poupança é calculada automaticamente pela diferença de património face ao mês anterior.</li>
         <li>As colunas são editáveis — renomeia, remove ou acrescenta categorias conforme a tua situação financeira.</li>
@@ -486,43 +472,32 @@
 
 <script>
 const GROUPS = {
-  fixedIncomeCats: { key:'fixedIncome', label:'Rendimentos Fixos' },
-  extraIncomeCats: { key:'extraIncome', label:'Rendimentos Extra' },
-  extraCats:        { key:'extra',       label:'Despesa Extra' },
-  accountCats:      { key:'accounts',    label:'Saldos de contas' },
+  incomeCats:  { key:'income',   label:'Rendimentos' },
+  accountCats: { key:'accounts', label:'Saldos de contas' },
 };
 
+// Data ISO do dia 15 do mês atual + um desvio em meses (negativo = meses anteriores).
+function monthDateISO(offsetMonths){
+  const now = new Date();
+  let y = now.getFullYear(), m = now.getMonth() + 1 + offsetMonths;
+  while(m < 1){ m += 12; y -= 1; }
+  while(m > 12){ m -= 12; y += 1; }
+  return `${y}-${String(m).padStart(2,'0')}-15`;
+}
+
 const DEFAULT_STATE = {
-  fixedIncomeCats: ["Salário líquido", "Subsídio Alimentação", "Outros (ex: combustível)"],
-  extraIncomeCats: ["Ex: IRS, venda"],
-  extraCats: ["Ex: IRS a pagar"],
-  accountCats: ["Banco A", "Banco B"],
+  incomeCats: ["Salário líquido", "Outros (ex: combustível)"],
+  accountCats: ["Banco A"],
   recurring: {
-    fixedIncome: {"Salário líquido":true, "Subsídio Alimentação":true, "Outros (ex: combustível)":false},
-    extraIncome: {"Ex: IRS, venda":false},
-    extra: {"Ex: IRS a pagar":false}
+    income: {"Salário líquido":true, "Outros (ex: combustível)":false}
   },
   rows: [
-    { date:"2026-08-15",
-      fixedIncome:{"Salário líquido":1450,"Subsídio Alimentação":150,"Outros (ex: combustível)":0},
-      extraIncome:{"Ex: IRS, venda":0},
-      extra:{"Ex: IRS a pagar":0},
-      accounts:{"Banco A":2000,"Banco B":1200} },
-    { date:"2026-09-15",
-      fixedIncome:{"Salário líquido":1450,"Subsídio Alimentação":150,"Outros (ex: combustível)":0},
-      extraIncome:{"Ex: IRS, venda":0},
-      extra:{"Ex: IRS a pagar":0},
-      accounts:{"Banco A":2150,"Banco B":1260} },
-    { date:"2026-10-15",
-      fixedIncome:{"Salário líquido":1450,"Subsídio Alimentação":150,"Outros (ex: combustível)":0},
-      extraIncome:{"Ex: IRS, venda":300},
-      extra:{"Ex: IRS a pagar":220},
-      accounts:{"Banco A":2200,"Banco B":1320} },
-    { date:"2026-11-15",
-      fixedIncome:{"Salário líquido":1450,"Subsídio Alimentação":150,"Outros (ex: combustível)":0},
-      extraIncome:{"Ex: IRS, venda":0},
-      extra:{"Ex: IRS a pagar":0},
-      accounts:{"Banco A":2350,"Banco B":1380} },
+    { date:monthDateISO(-1),
+      income:{"Salário líquido":1450,"Outros (ex: combustível)":0},
+      accounts:{"Banco A":2000} },
+    { date:monthDateISO(0),
+      income:{"Salário líquido":1450,"Outros (ex: combustível)":0},
+      accounts:{"Banco A":2150} },
   ]
 };
 
@@ -556,19 +531,14 @@ function sumCat(obj){ return Object.values(obj).reduce((a,b)=>a+(Number(b)||0),0
 function computeRow(i){
   const row = state.rows[i];
   const prev = state.rows[i-1];
-  const totalFixed = sumCat(row.fixedIncome);
-  const totalExtraIncome = sumCat(row.extraIncome);
-  const totalIncome = totalFixed + totalExtraIncome;
-  const totalExtraExpense = sumCat(row.extra);
+  const totalIncome = sumCat(row.income);
   const totalAccounts = sumCat(row.accounts);
   const prevAccounts = prev ? sumCat(prev.accounts) : null;
   const variacao = prevAccounts===null ? null : totalAccounts - prevAccounts;
   const gastoTotal = variacao===null ? null : totalIncome - variacao;
   const poupEUR = variacao;
   const poupPct = (poupEUR===null || totalIncome===0) ? null : (poupEUR/totalIncome*100);
-  const poupAjEUR = poupEUR===null ? null : poupEUR + totalExtraExpense;
-  const poupAjPct = (poupAjEUR===null || totalIncome===0) ? null : (poupAjEUR/totalIncome*100);
-  return {totalIncome,totalAccounts,variacao,gastoTotal,poupEUR,poupPct,poupAjEUR,poupAjPct};
+  return {totalIncome,totalAccounts,variacao,gastoTotal,poupEUR,poupPct};
 }
 
 let modalResolve = null;
@@ -696,17 +666,11 @@ function suggestNextDate(last){
 
 function addMonth(){
   const last = state.rows[state.rows.length-1];
-  const fixedIncome = {}; state.fixedIncomeCats.forEach(c=>{
-    fixedIncome[c] = (last && state.recurring.fixedIncome[c]) ? (last.fixedIncome[c]||0) : 0;
-  });
-  const extraIncome = {}; state.extraIncomeCats.forEach(c=>{
-    extraIncome[c] = (last && state.recurring.extraIncome[c]) ? (last.extraIncome[c]||0) : 0;
-  });
-  const extra = {}; state.extraCats.forEach(c=>{
-    extra[c] = (last && state.recurring.extra[c]) ? (last.extra[c]||0) : 0;
+  const income = {}; state.incomeCats.forEach(c=>{
+    income[c] = (last && state.recurring.income[c]) ? (last.income[c]||0) : 0;
   });
   const accounts = {}; state.accountCats.forEach(c=>accounts[c]=last ? (last.accounts[c]||0) : 0);
-  state.rows.push({date:suggestNextDate(last), fixedIncome, extraIncome, extra, accounts});
+  state.rows.push({date:suggestNextDate(last), income, accounts});
   render();
 }
 
@@ -716,14 +680,13 @@ function removeMonth(i){
   render();
 }
 
-function isRowAllZero(row){
-  const vals = [
-    ...Object.values(row.fixedIncome),
-    ...Object.values(row.extraIncome),
-    ...Object.values(row.extra),
-    ...Object.values(row.accounts)
-  ];
-  return vals.every(v => (Number(v)||0) === 0);
+// Um mês é "passado ou atual" se o seu ano-mês for <= ao ano-mês de hoje.
+// Sem data definida trata-se como "futuro" (sem histórico a proteger).
+function isPastOrCurrentMonth(iso){
+  if(!iso) return false;
+  const now = new Date();
+  const currentYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  return iso.slice(0,7) <= currentYM;
 }
 
 function groupHeaderCell(label, span, group, tooltip){
@@ -770,9 +733,7 @@ function render(){
   monthTh.appendChild(monthLabelWrap);
   groupRow.appendChild(monthTh);
 
-  groupRow.appendChild(groupHeaderCell('Rendimentos Fixos', state.fixedIncomeCats.length, 'fixedIncomeCats'));
-  groupRow.appendChild(groupHeaderCell('Rendimentos Extra', state.extraIncomeCats.length, 'extraIncomeCats'));
-  groupRow.appendChild(groupHeaderCell('Despesa Extra', state.extraCats.length, 'extraCats'));
+  groupRow.appendChild(groupHeaderCell('Rendimentos', state.incomeCats.length, 'incomeCats'));
   groupRow.appendChild(groupHeaderCell('Saldos de contas', state.accountCats.length, 'accountCats',
     'Inclui contas à ordem e a prazo. Os juros de contas a prazo são normalmente tão reduzidos que não entram no cálculo de rentabilidade de investimentos — servem aqui apenas para refletir o património total.'));
   groupRow.appendChild(groupHeaderCell('Cálculo automático', 5, null));
@@ -790,9 +751,7 @@ function render(){
     th.appendChild(del);
     return th;
   }
-  state.fixedIncomeCats.forEach(c=>catRow.appendChild(catCell(c,'fixedIncomeCats')));
-  state.extraIncomeCats.forEach(c=>catRow.appendChild(catCell(c,'extraIncomeCats')));
-  state.extraCats.forEach(c=>catRow.appendChild(catCell(c,'extraCats')));
+  state.incomeCats.forEach(c=>catRow.appendChild(catCell(c,'incomeCats')));
   state.accountCats.forEach(c=>catRow.appendChild(catCell(c,'accountCats')));
   ["Total Rendimentos","Total Contas","Gasto Total","Poupança €","Poupança %"]
     .forEach(t=>{ const th=document.createElement('th'); th.className='calc'; th.textContent=t; catRow.appendChild(th); });
@@ -853,9 +812,7 @@ function render(){
       inp.addEventListener('keydown', e=>{ if(e.key==='Enter') e.target.blur(); });
       td.appendChild(inp); return td;
     }
-    state.fixedIncomeCats.forEach(c=>tr.appendChild(valCell(row.fixedIncome,c)));
-    state.extraIncomeCats.forEach(c=>tr.appendChild(valCell(row.extraIncome,c)));
-    state.extraCats.forEach(c=>tr.appendChild(valCell(row.extra,c)));
+    state.incomeCats.forEach(c=>tr.appendChild(valCell(row.income,c)));
     state.accountCats.forEach(c=>tr.appendChild(valCell(row.accounts,c)));
 
     const c = computeRow(i);
@@ -882,13 +839,22 @@ function render(){
       const delBtn = document.createElement('button'); delBtn.className='row-btn del-row'; delBtn.textContent='×';
       delBtn.title = 'Remover este mês';
       delBtn.onclick = async ()=>{
-        if(!isRowAllZero(row)){
-          await openModal({message:'Só é possível remover este mês se todos os valores de <i>input</i> (exceto a data) estiverem a zero.', confirmOnly:true, confirmLabel:'Ok', allowHtml:true});
+        if(state.rows.length<=1){
+          await openModal({message:'Tem de existir pelo menos um mês na tabela.', confirmOnly:true, confirmLabel:'Ok'});
           return;
         }
-        const ref = row.date || 'este mês';
-        const ok = await openModal({message:'Remover o registo de "'+ref+'"? Esta ação não pode ser desfeita.', confirmLabel:'Remover'});
-        if(ok) removeMonth(i);
+        if(isPastOrCurrentMonth(row.date)){
+          const ref = isoToDisplayDate(row.date) || 'este mês';
+          const typed = await openModal({
+            message:'Remover o registo de "'+ref+'"? Este mês já passou (ou é o mês atual) — esta ação não pode ser desfeita. Para confirmares, escreve "Apagar" na caixa abaixo.',
+            withInput:true,
+            inputValue:'',
+            confirmLabel:'Remover',
+            requireMatch:'Apagar'
+          });
+          if(!typed) return;
+        }
+        removeMonth(i);
       };
       btnWrap.appendChild(delBtn);
     }
@@ -957,9 +923,7 @@ function loadState(){
   try{
     const parsed = JSON.parse(raw);
     if(parsed && Array.isArray(parsed.rows)){
-      state.fixedIncomeCats = parsed.fixedIncomeCats || state.fixedIncomeCats;
-      state.extraIncomeCats = parsed.extraIncomeCats || state.extraIncomeCats;
-      state.extraCats = parsed.extraCats || state.extraCats;
+      state.incomeCats = parsed.incomeCats || state.incomeCats;
       state.accountCats = parsed.accountCats || state.accountCats;
       state.recurring = parsed.recurring || state.recurring;
       state.rows = parsed.rows;
@@ -994,9 +958,7 @@ function csvEscape(val){
 
 function exportCSV(){
   const headers = ['Data'];
-  state.fixedIncomeCats.forEach(c=>headers.push(c));
-  state.extraIncomeCats.forEach(c=>headers.push(c));
-  state.extraCats.forEach(c=>headers.push(c));
+  state.incomeCats.forEach(c=>headers.push(c));
   state.accountCats.forEach(c=>headers.push(c));
   headers.push('Total Rendimentos','Total Contas','Gasto Total','Poupança €','Poupança %');
 
@@ -1004,9 +966,7 @@ function exportCSV(){
   state.rows.forEach((row,i)=>{
     const c = computeRow(i);
     const line = [row.date || ''];
-    state.fixedIncomeCats.forEach(cat=>line.push(row.fixedIncome[cat] ?? 0));
-    state.extraIncomeCats.forEach(cat=>line.push(row.extraIncome[cat] ?? 0));
-    state.extraCats.forEach(cat=>line.push(row.extra[cat] ?? 0));
+    state.incomeCats.forEach(cat=>line.push(row.income[cat] ?? 0));
     state.accountCats.forEach(cat=>line.push(row.accounts[cat] ?? 0));
     line.push(
       c.totalIncome,
@@ -1039,11 +999,9 @@ async function importBackup(file){
     if(!parsed || !Array.isArray(parsed.rows)) throw new Error('formato inválido');
     const ok = await openModal({message:'Importar este backup vai substituir todos os dados atuais na tabela. Continuar?', confirmLabel:'Importar'});
     if(!ok) return;
-    state.fixedIncomeCats = parsed.fixedIncomeCats || [];
-    state.extraIncomeCats = parsed.extraIncomeCats || [];
-    state.extraCats = parsed.extraCats || [];
+    state.incomeCats = parsed.incomeCats || [];
     state.accountCats = parsed.accountCats || [];
-    state.recurring = parsed.recurring || {fixedIncome:{}, extraIncome:{}, extra:{}};
+    state.recurring = parsed.recurring || {income:{}};
     state.rows = parsed.rows;
     state.rows.forEach(r=>{ if(r.date && r.date.length === 7) r.date = r.date + '-15'; });
     render();
@@ -1055,7 +1013,7 @@ async function importBackup(file){
 async function clearAllData(){
   const confirmWord = 'APAGAR';
   const typed = await openModal({
-    message:'Isto vai apagar TODOS os meses e valores preenchidos nesta tabela — incluindo a cópia guardada automaticamente neste browser — sem possibilidade de recuperar (a não ser que tenhas um backup exportado). A tabela volta a mostrar os 4 meses de exemplo padrão. Para confirmares, escreve "'+confirmWord+'" na caixa abaixo.',
+    message:'Isto vai apagar TODOS os meses e valores preenchidos nesta tabela — incluindo a cópia guardada automaticamente neste browser — sem possibilidade de recuperar (a não ser que tenhas um backup exportado). A tabela volta a mostrar os 2 meses de exemplo padrão (mês anterior e mês atual). Para confirmares, escreve "'+confirmWord+'" na caixa abaixo.',
     withInput:true,
     inputValue:'',
     confirmLabel:'Limpar tudo',
