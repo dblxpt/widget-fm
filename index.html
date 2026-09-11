@@ -165,7 +165,7 @@
     border-color:var(--highlight);
   }
   button.primary:hover{background:var(--highlight-dark);border-color:var(--highlight-dark);}
-  .table-scroll{overflow-x:auto; overflow-y:auto; max-height:min(60vh, 480px);}
+  .table-scroll{overflow-x:auto; overflow-y:auto; max-height:min(60vh, 480px, var(--rows-cap, 9999px));}
   .scroll-wrap{position:relative;}
   .scroll-fade{
     position:absolute;
@@ -1130,18 +1130,33 @@ function render(){
   updateStickyHeaderOffsets();
 }
 
+const MAX_VISIBLE_ROWS = 5;
+
 // O cabeçalho tem 3 linhas fixas (sticky) sobrepostas; cada uma precisa de saber
 // a altura real das anteriores para se empilhar corretamente, já que a altura
-// varia (labels que quebram linha, colunas colapsadas, etc.).
+// varia (labels que quebram linha, colunas colapsadas, etc.). Aproveita-se a mesma
+// medição para limitar a área visível a MAX_VISIBLE_ROWS linhas de dados, em
+// conjunto com o limite de altura já existente (min(60vh, 480px)) — vale o mais
+// restritivo dos dois.
 function updateStickyHeaderOffsets(){
   const groupRow = document.getElementById('groupRow');
   const subRow = document.getElementById('subRow');
+  const catRow = document.getElementById('catRow');
   const table = document.getElementById('mainTable');
-  if(!groupRow || !subRow || !table) return;
+  const tableScroll = document.getElementById('tableScroll');
+  if(!groupRow || !subRow || !catRow || !table) return;
   const groupH = groupRow.getBoundingClientRect().height;
   const subH = subRow.getBoundingClientRect().height;
+  const catH = catRow.getBoundingClientRect().height;
   table.style.setProperty('--sub-row-top', groupH + 'px');
   table.style.setProperty('--cat-row-top', (groupH + subH) + 'px');
+
+  if(tableScroll){
+    const firstRow = document.querySelector('#tbody tr');
+    const rowH = firstRow ? firstRow.getBoundingClientRect().height : 40;
+    const rowsCap = groupH + subH + catH + MAX_VISIBLE_ROWS * rowH;
+    tableScroll.style.setProperty('--rows-cap', rowsCap + 'px');
+  }
 }
 
 function scrollToLatestMonth(){
