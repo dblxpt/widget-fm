@@ -534,7 +534,7 @@ function monthDateISO(offsetMonths){
 const DEFAULT_STATE = {
   incomeCats: ["Salário líquido"],
   accountCats: ["Banco A"],
-  investCats: ["Broker A"],
+  investCats: ["PPR", "Broker A"],
   recurring: {
     income: {"Salário líquido":true}
   },
@@ -542,11 +542,11 @@ const DEFAULT_STATE = {
     { date:monthDateISO(-1),
       income:{"Salário líquido":1450},
       accounts:{"Banco A":2000},
-      investments:{"Broker A":{flow:0, saldo:1000}} },
+      investments:{"PPR":{flow:0, saldo:1000}, "Broker A":{flow:0, saldo:500}} },
     { date:monthDateISO(0),
       income:{"Salário líquido":1450},
       accounts:{"Banco A":2150},
-      investments:{"Broker A":{flow:50, saldo:1050}} },
+      investments:{"PPR":{flow:50, saldo:1050}, "Broker A":{flow:20, saldo:520}} },
   ],
   uiCollapsed: { accountCols: [], investCols: [], investSection: false }
 };
@@ -1038,7 +1038,11 @@ function render(){
         tr.appendChild(valCell(row.accounts,c));
       }
     });
-    if(!investSectionCollapsed){
+    if(investSectionCollapsed){
+      // A célula colapsada de "Investimentos" no cabeçalho tem rowSpan=3 (não atravessa para o tbody),
+      // por isso cada linha precisa da sua própria célula estreita nesta posição para as colunas não desalinharem.
+      const td = document.createElement('td'); td.className='invest col-collapsed'; tr.appendChild(td);
+    } else {
       state.investCats.forEach(b=>{
         if(state.uiCollapsed.investCols.includes(b)){
           const td = document.createElement('td'); td.className='invest col-collapsed'; tr.appendChild(td);
