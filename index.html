@@ -396,7 +396,6 @@
   }
   .modal-actions{display:flex; justify-content:flex-end; gap:8px;}
 
-  .ad-anchor{display:none;}
   @media (max-width:600px){
     header{margin-bottom:20px;}
     h1{font-size:1.15rem; margin-bottom:10px; padding-bottom:6px;}
@@ -405,43 +404,6 @@
     .how-it-works{margin-top:6px;}
     .how-it-works summary{font-size:0.78rem;}
     .how-it-works p, .how-it-works ul{font-size:0.78rem;}
-
-    body{padding-bottom:96px;}
-    .ad-anchor{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      position:fixed;
-      left:0; right:0; bottom:0;
-      height:52px;
-      background:var(--paper);
-      border-top:1px dashed var(--line);
-      box-shadow:0 -4px 12px rgba(15,27,56,0.12);
-      z-index:150;
-    }
-    .ad-anchor-label{
-      color:var(--ink-soft);
-      font-size:0.68rem;
-      letter-spacing:0.04em;
-      text-transform:uppercase;
-    }
-    .ad-anchor-close{
-      position:absolute;
-      right:8px; top:50%; transform:translateY(-50%);
-      width:22px; height:22px;
-      border-radius:50%;
-      border:1px solid var(--line);
-      background:var(--paper);
-      color:var(--ink-soft);
-      font-size:0.7rem;
-      line-height:1;
-      cursor:pointer;
-      display:flex; align-items:center; justify-content:center;
-      padding:0;
-    }
-    .ad-anchor-close:hover{border-color:var(--primary); color:var(--primary);}
-    body.ad-anchor-closed{padding-bottom:40px;}
-    body.ad-anchor-closed .ad-anchor{display:none;}
   }
 
   button:disabled, button.primary:disabled{opacity:0.45;cursor:not-allowed;}
@@ -519,11 +481,6 @@
 </div>
 
 <div class="floating-tooltip hidden" id="floatingTooltip"></div>
-
-<div class="ad-anchor" id="adAnchor" role="complementary" aria-label="Espaço reservado para anúncio">
-  <span class="ad-anchor-label">Espaço reservado para anúncio (Google AdSense)</span>
-  <button class="ad-anchor-close" id="adAnchorClose" aria-label="Fechar anúncio" type="button">✕</button>
-</div>
 
 <script>
 const GROUPS = {
@@ -1420,11 +1377,6 @@ document.getElementById('tableScroll').addEventListener('scroll', updateScrollFa
 window.addEventListener('resize', updateScrollFades);
 new ResizeObserver(updateScrollFades).observe(document.getElementById('mainTable'));
 updateScrollFades();
-
-// Anúncio âncora (mockup): fixo no fundo em ecrãs pequenos, fechável — nunca empurra o conteúdo.
-document.getElementById('adAnchorClose').onclick = ()=>{
-  document.body.classList.add('ad-anchor-closed');
-};
 </script>
 </body>
 </html>
