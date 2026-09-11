@@ -118,12 +118,15 @@
   .actions{display:flex;gap:8px;flex-wrap:wrap;width:auto;}
   .add-month-bar{
     display:flex;
-    justify-content:center;
+    justify-content:flex-start;
+    align-items:center;
+    gap:8px;
     padding:12px;
     border-top:1px solid var(--line);
     background:var(--primary-soft);
   }
-  .add-month-bar button{flex:0 1 auto;min-width:180px;}
+  .add-month-bar button{flex:0 0 auto;}
+  .add-month-bar button.primary{min-width:180px;}
   button{
     font-family:'Public Sans', sans-serif;
     font-size:0.74rem;
@@ -148,7 +151,7 @@
   button.danger:hover{background:var(--rust-soft);border-color:var(--rust);}
   .backup-bar{
     padding:10px 12px;
-    border-bottom:1px solid var(--line);
+    border-top:1px solid var(--line);
     background:var(--primary-soft);
   }
   .backup-row{
@@ -282,6 +285,11 @@
   }
   th.calc, td.calc{
     background:#EEF1F8;
+  }
+  thead tr.sub-row th.calc{
+    white-space:normal;
+    min-width:100px;
+    line-height:1.25;
   }
   th.month-col, td.month-col{
     position:static;
@@ -470,17 +478,6 @@
     <div class="panel-head">
       <h2>Registo mensal</h2>
     </div>
-    <div class="backup-bar">
-      <div class="backup-row">
-        <button id="exportBtn" class="small" title="Backup completo (permite restaurar tudo depois)">Exportar backup (JSON)</button>
-        <input type="file" id="importInput" accept="application/json" style="display:none;">
-        <button id="importBtn" class="small" title="Restaurar a partir de um ficheiro de backup JSON">Importar backup (JSON)</button>
-        <button id="exportCsvBtn" class="small" title="Para abrir no Excel, Numbers ou Google Sheets">Exportar CSV</button>
-        <button id="clearAllBtn" class="small danger" title="Apagar todos os meses e valores preenchidos">Limpar tudo</button>
-        <span class="info-icon backup-info" data-tooltip="Estes dados só ficam guardados neste browser — se limpares o histórico, trocares de dispositivo ou o espaço de armazenamento falhar, perdes tudo. O JSON é o único formato que consegues reimportar aqui; o CSV é só para abrir noutras ferramentas.">ⓘ</span>
-        <span id="saveStatus" class="save-status"></span>
-      </div>
-    </div>
     <div class="scroll-wrap">
       <div class="table-scroll" id="tableScroll">
         <table id="mainTable">
@@ -497,9 +494,21 @@
     </div>
     <div class="add-month-bar">
       <button id="addMonth" class="primary">+ Adicionar mês</button>
+      <button id="optionsToggle" class="small" aria-expanded="false" aria-controls="optionsPanel">Opções</button>
+    </div>
+    <div class="backup-bar hidden" id="optionsPanel">
+      <div class="backup-row">
+        <button id="exportBtn" class="small" title="Backup completo (permite restaurar tudo depois)">Exportar backup (JSON)</button>
+        <input type="file" id="importInput" accept="application/json" style="display:none;">
+        <button id="importBtn" class="small" title="Restaurar a partir de um ficheiro de backup JSON">Importar backup (JSON)</button>
+        <button id="exportCsvBtn" class="small" title="Para abrir no Excel, Numbers ou Google Sheets">Exportar CSV</button>
+        <button id="clearAllBtn" class="small danger" title="Apagar todos os meses e valores preenchidos">Limpar tudo</button>
+        <span class="info-icon backup-info" data-tooltip="Estes dados só ficam guardados neste browser — se limpares o histórico, trocares de dispositivo ou o espaço de armazenamento falhar, perdes tudo. O JSON é o único formato que consegues reimportar aqui; o CSV é só para abrir noutras ferramentas.">ⓘ</span>
+        <span id="saveStatus" class="save-status"></span>
+      </div>
     </div>
     <div class="foot-note">
-      <strong>Primeiro mês:</strong> como ainda não há um mês anterior para comparar saldos, o Gasto Total e a Poupança desse mês aparecem como "—". A partir do segundo mês, o cálculo funciona normalmente.
+      <strong>Primeiro mês:</strong> como ainda não há um mês anterior para comparar saldos, o Gasto mensal e a Poupança desse mês aparecem como "—". A partir do segundo mês, o cálculo funciona normalmente.
       <div class="legend">
         <span><span class="swatch" style="background:var(--green)"></span> Poupança positiva</span>
         <span><span class="swatch" style="background:var(--rust)"></span> Poupança negativa (gastou mais do que recebeu)</span>
@@ -903,7 +912,7 @@ function render(){
     groupRow.appendChild(investTopTh);
   }
 
-  groupRow.appendChild(groupHeaderCell('Cálculo automático', 7, null));
+  groupRow.appendChild(groupHeaderCell('Cálculo automático de resultados', 7, null));
   const rowActTh = document.createElement('th'); rowActTh.rowSpan=3; rowActTh.setAttribute('aria-label','Ações'); rowActTh.style.fontWeight='600'; rowActTh.style.fontSize='0.72rem'; rowActTh.style.color='var(--ink-soft)'; groupRow.appendChild(rowActTh);
 
   subRow.appendChild(groupHeaderCell('Rendimentos', state.incomeCats.length, ()=>addCategory('incomeCats')));
@@ -942,7 +951,7 @@ function render(){
     state.investCats.forEach(b=>subRow.appendChild(brokerHeaderCell(b)));
   }
 
-  const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto Total","Poupança €","Poupança %"];
+  const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto mensal","Poupança €","Poupança %"];
   calcLabels.forEach((t,idx)=>{
     const th=document.createElement('th'); th.className = idx===3 ? 'calc total-patrimonio' : 'calc'; th.rowSpan=2; th.textContent=t;
     subRow.appendChild(th);
@@ -1070,7 +1079,7 @@ function render(){
     }
 
     const c = computeRow(i);
-    const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto Total","Poupança €","Poupança %"];
+    const calcLabels = ["Total Rendimentos","Total Contas","Total Investimentos","Património Total","Gasto mensal","Poupança €","Poupança %"];
     const calcVals = [
       fmtEUR(c.totalIncome), fmtEUR(c.totalAccounts), fmtEUR(c.totalInvest), fmtEUR(c.patrimonioTotal),
       fmtEUR(c.gastoTotal), fmtEUR(c.poupEUR), fmtPct(c.poupPct)
@@ -1177,6 +1186,12 @@ function refreshCalc(){
 }
 
 document.getElementById('addMonth').onclick = addMonth;
+document.getElementById('optionsToggle').onclick = ()=>{
+  const panel = document.getElementById('optionsPanel');
+  const btn = document.getElementById('optionsToggle');
+  const nowHidden = panel.classList.toggle('hidden');
+  btn.setAttribute('aria-expanded', String(!nowHidden));
+};
 
 const STORAGE_KEY = 'gestao-financeira-dados-v1';
 let storageAvailable = true;
@@ -1265,7 +1280,7 @@ function exportCSV(){
   state.incomeCats.forEach(c=>headers.push(c));
   state.accountCats.forEach(c=>headers.push(c));
   state.investCats.forEach(b=>headers.push(b+' — Entradas/Saídas', b+' — Saldo'));
-  headers.push('Total Rendimentos','Total Contas','Total Investimentos','Património Total','Gasto Total','Poupança €','Poupança %');
+  headers.push('Total Rendimentos','Total Contas','Total Investimentos','Património Total','Gasto mensal','Poupança €','Poupança %');
 
   const lines = [headers];
   state.rows.forEach((row,i)=>{
