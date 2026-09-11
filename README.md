@@ -1,19 +1,17 @@
 # Widget-FM — Gestão Financeira (Protótipo)
 
-Ferramenta de teste para gestão financeira mensal: registas rendimentos (fixos e extra) e saldos de contas, e a poupança é calculada automaticamente pela variação de património — sem precisares de categorizar despesas.
+Ferramenta de teste para gestão financeira mensal: registas rendimentos e saldos de contas, e a poupança é calculada automaticamente pela variação de património — sem precisares de categorizar despesas.
 
 - **App**: [`index.html`](./gestao-financeira-prototipo.html) — HTML/CSS/JS autossuficiente, sem dependências de servidor. Os dados ficam guardados no `localStorage` do browser (com exportação/importação de backup em JSON e exportação em CSV).
 - **Documentação**: ver [`DOCUMENTACAO.md`](./DOCUMENTACAO.md) para a lógica de cálculo, estrutura de dados, decisões de design e próximos passos planeados.
 
 ## Acesso online
 
-Este repositório está configurado para publicar automaticamente via **GitHub Pages** a cada push para `main`. Depois do primeiro deployment, a ferramenta fica acessível em:
+A ferramenta está publicada via **GitHub Pages** e fica acessível diretamente no browser em:
 
-```
-https://dblxpt.github.io/asset-fmtool/
-```
+**https://dblxpt.github.io/widget-fm/**
 
-(O projeto está a ser renomeado para **widget-fm** — quando o repositório for renomeado, o link do GitHub Pages passa automaticamente a `https://dblxpt.github.io/widget-fm/`, com redirecionamento do link antigo durante algum tempo.)
+O deployment é automático a cada push para `main` (ver `.github/workflows/deploy-pages.yml`).
 
 ## Estado
 
