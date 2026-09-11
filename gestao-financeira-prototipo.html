@@ -112,6 +112,14 @@
     color:#fff;
   }
   .actions{display:flex;gap:8px;flex-wrap:wrap;width:auto;}
+  .add-month-bar{
+    display:flex;
+    justify-content:center;
+    padding:12px;
+    border-top:1px solid var(--line);
+    background:var(--primary-soft);
+  }
+  .add-month-bar button{flex:0 1 auto;min-width:180px;}
   button{
     font-family:'Public Sans', sans-serif;
     font-size:0.74rem;
@@ -178,7 +186,7 @@
   thead tr.group-row th{
     font-family:'Public Sans', sans-serif;
     font-weight:600;
-    font-size:0.66rem;
+    font-size:0.78rem;
     color:var(--ink-soft);
     text-align:center;
     padding:8px 5px 3px;
@@ -186,6 +194,7 @@
     white-space:nowrap;
   }
   thead tr.cat-row th{
+    font-size:0.78rem;
     padding:4px 5px 7px;
     border-bottom:1px solid var(--line);
     text-align:center;
@@ -200,8 +209,10 @@
     outline:none;
     padding:2px 3px;
     border-radius:2px;
+    border-bottom:1px dashed var(--line);
+    cursor:text;
   }
-  .cat-label:focus{background:var(--primary-soft);}
+  .cat-label:focus{background:var(--primary-soft); border-bottom-style:solid; border-bottom-color:var(--primary);}
   .add-col-btn{
     font-size:0.68rem;
     padding:2px 6px;
@@ -332,6 +343,7 @@
     padding:18px; width:min(320px, 88vw); box-shadow:0 8px 24px rgba(0,0,0,0.18);
   }
   .modal-box p{margin:0 0 14px; font-size:0.92rem; line-height:1.5;}
+  .confirm-word{font-variant-caps:small-caps; font-weight:700; color:var(--rust); letter-spacing:0.02em;}
   .modal-box input{
     width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:3px;
     font-family:'Public Sans', sans-serif; font-size:0.9rem; margin-bottom:14px;
@@ -412,9 +424,6 @@
   <div class="panel">
     <div class="panel-head">
       <h2>Registo mensal</h2>
-      <div class="actions">
-        <button id="addMonth" class="primary">+ Adicionar mês</button>
-      </div>
     </div>
     <div class="backup-bar">
       <div class="backup-row">
@@ -439,6 +448,9 @@
       </div>
       <div class="scroll-fade left" id="fadeLeft"></div>
       <div class="scroll-fade right" id="fadeRight"></div>
+    </div>
+    <div class="add-month-bar">
+      <button id="addMonth" class="primary">+ Adicionar mês</button>
     </div>
     <div class="foot-note">
       <strong>Primeiro mês:</strong> como ainda não há um mês anterior para comparar saldos, o Gasto Total e a Poupança desse mês aparecem como "—". A partir do segundo mês, o cálculo funciona normalmente.
@@ -486,17 +498,17 @@ function monthDateISO(offsetMonths){
 }
 
 const DEFAULT_STATE = {
-  incomeCats: ["Salário líquido", "Outros (ex: combustível)"],
+  incomeCats: ["Salário líquido"],
   accountCats: ["Banco A"],
   recurring: {
-    income: {"Salário líquido":true, "Outros (ex: combustível)":false}
+    income: {"Salário líquido":true}
   },
   rows: [
     { date:monthDateISO(-1),
-      income:{"Salário líquido":1450,"Outros (ex: combustível)":0},
+      income:{"Salário líquido":1450},
       accounts:{"Banco A":2000} },
     { date:monthDateISO(0),
-      income:{"Salário líquido":1450,"Outros (ex: combustível)":0},
+      income:{"Salário líquido":1450},
       accounts:{"Banco A":2150} },
   ]
 };
@@ -743,6 +755,7 @@ function render(){
     const th = document.createElement('th');
     const label = document.createElement('span');
     label.className='cat-label'; label.contentEditable=true; label.textContent=name;
+    label.title = 'Clica para editar o nome';
     label.onblur = ()=>renameCategory(group, name, label.textContent.trim());
     th.appendChild(label);
     const del = document.createElement('button');
@@ -766,6 +779,7 @@ function render(){
     inpDate.placeholder = 'dd-mm-aaaa'; inpDate.maxLength = 10;
     inpDate.value = isoToDisplayDate(row.date);
     inpDate.className='month-input';
+    inpDate.addEventListener('focus', e=>e.target.select());
     inpDate.oninput = e=>{
       let v = e.target.value.replace(/[^\d]/g,'').slice(0,8);
       if(v.length>4) v = v.slice(0,2)+'-'+v.slice(2,4)+'-'+v.slice(4);
@@ -781,7 +795,7 @@ function render(){
       }
       render();
     };
-    inpDate.addEventListener('keydown', e=>{ if(e.key==='Enter') e.target.blur(); });
+    inpDate.addEventListener('keydown', handleCellNavKey);
     tdMonth.appendChild(inpDate);
 
     const prevDated = [...state.rows.slice(0,i)].reverse().find(r=>r.date);
@@ -801,6 +815,7 @@ function render(){
       td.setAttribute('data-label', key);
       const inp = document.createElement('input'); inp.type='text'; inp.inputMode='decimal';
       inp.value = (obj[key] === 0 || obj[key] === undefined) ? '' : String(obj[key]).replace('.', ',');
+      inp.addEventListener('focus', e=>e.target.select());
       inp.oninput = e=>{
         if(e.target.value.includes('.')){
           const pos = e.target.selectionStart;
@@ -809,7 +824,7 @@ function render(){
         }
         obj[key]=parseFloat(e.target.value.replace(',','.'))||0; refreshCalc();
       };
-      inp.addEventListener('keydown', e=>{ if(e.key==='Enter') e.target.blur(); });
+      inp.addEventListener('keydown', handleCellNavKey);
       td.appendChild(inp); return td;
     }
     state.incomeCats.forEach(c=>tr.appendChild(valCell(row.income,c)));
@@ -846,11 +861,12 @@ function render(){
         if(isPastOrCurrentMonth(row.date)){
           const ref = isoToDisplayDate(row.date) || 'este mês';
           const typed = await openModal({
-            message:'Remover o registo de "'+ref+'"? Este mês já passou (ou é o mês atual) — esta ação não pode ser desfeita. Para confirmares, escreve "Apagar" na caixa abaixo.',
+            message:'Remover "'+ref+'"? Ação irreversível — escreve <span class="confirm-word">Apagar</span> para confirmar.',
             withInput:true,
             inputValue:'',
             confirmLabel:'Remover',
-            requireMatch:'Apagar'
+            requireMatch:'Apagar',
+            allowHtml:true
           });
           if(!typed) return;
         }
@@ -865,6 +881,36 @@ function render(){
     tbody.appendChild(tr);
   });
   saveState();
+}
+
+function focusNextInput(currentInput){
+  const table = document.getElementById('mainTable');
+  const inputs = Array.from(table.querySelectorAll('tbody input'));
+  const idx = inputs.indexOf(currentInput);
+  currentInput.blur();
+  setTimeout(()=>{
+    const freshInputs = Array.from(table.querySelectorAll('tbody input'));
+    const next = freshInputs[idx+1];
+    if(next) next.focus();
+  }, 0);
+}
+function focusPrevInput(currentInput){
+  const table = document.getElementById('mainTable');
+  const inputs = Array.from(table.querySelectorAll('tbody input'));
+  const idx = inputs.indexOf(currentInput);
+  currentInput.blur();
+  setTimeout(()=>{
+    const freshInputs = Array.from(table.querySelectorAll('tbody input'));
+    const prev = freshInputs[idx-1];
+    if(prev) prev.focus();
+  }, 0);
+}
+function handleCellNavKey(e){
+  if(e.key==='Enter'){ e.preventDefault(); focusNextInput(e.target); }
+  else if(e.key==='Tab'){
+    e.preventDefault();
+    if(e.shiftKey) focusPrevInput(e.target); else focusNextInput(e.target);
+  }
 }
 
 function refreshCalc(){
@@ -1011,13 +1057,14 @@ async function importBackup(file){
 }
 
 async function clearAllData(){
-  const confirmWord = 'APAGAR';
+  const confirmWord = 'Apagar';
   const typed = await openModal({
-    message:'Isto vai apagar TODOS os meses e valores preenchidos nesta tabela — incluindo a cópia guardada automaticamente neste browser — sem possibilidade de recuperar (a não ser que tenhas um backup exportado). A tabela volta a mostrar os 2 meses de exemplo padrão (mês anterior e mês atual). Para confirmares, escreve "'+confirmWord+'" na caixa abaixo.',
+    message:'Apaga tudo e volta ao exemplo padrão. Ação irreversível — escreve <span class="confirm-word">'+confirmWord+'</span> para confirmar.',
     withInput:true,
     inputValue:'',
     confirmLabel:'Limpar tudo',
-    requireMatch:confirmWord
+    requireMatch:confirmWord,
+    allowHtml:true
   });
   if(!typed) return;
   if(storageAvailable){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){ /* ignora */ } }
